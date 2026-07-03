@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Register - Complaint Management</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="navbar">
+  <div class="brand">Complaint Management System</div>
+  <div><a href="login.html">Login</a></div>
+</div>
+
+<div class="container" style="max-width:450px;">
+  <div class="card">
+    <h2>Create Your Account</h2>
+    <div id="errorMsg" class="error-msg hidden"></div>
+
+    <form id="registerForm">
+      <label>Register As</label>
+      <select id="role">
+        <option value="USER">User</option>
+        <option value="AGENT">Agent</option>
+        <option value="ADMIN">Admin</option>
+      </select>
+
+      <label>Full Name</label>
+      <input type="text" id="name" required>
+
+      <label>Email</label>
+      <input type="email" id="email" required>
+
+      <label>Phone</label>
+      <input type="tel" id="phone" required>
+
+      <label>Password</label>
+      <input type="password" id="password" required minlength="6">
+
+      <div id="codeField" class="hidden">
+        <label id="codeLabel">Signup Code</label>
+        <input type="text" id="signupCode">
+      </div>
+
+      <button type="submit" style="width:100%;">Register</button>
+    </form>
+    <p class="text-muted mt-10">Already have an account? <a href="login.html">Login here</a></p>
+  </div>
+</div>
+
+<script src="js/api.js"></script>
+<script>
+const roleSelect = document.getElementById('role');
+const codeField = document.getElementById('codeField');
+const codeLabel = document.getElementById('codeLabel');
+
+roleSelect.addEventListener('change', () => {
+  if (roleSelect.value === 'USER') {
+    codeField.classList.add('hidden');
+  } else {
+    codeField.classList.remove('hidden');
+    codeLabel.textContent = roleSelect.value === 'AGENT' ? 'Agent Signup Code' : 'Admin Signup Code';
+  }
+});
+
+document.getElementById('registerForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  clearMessage('errorMsg');
+
+  const name = document.getElementById('name').value.trim();
+  const email = document.getElementById('email').value.trim();
+  const phone = document.getElementById('phone').value.trim();
+  const password = document.getElementById('password').value;
+  const role = roleSelect.value;
+  const signupCode = document.getElementById('signupCode').value.trim();
+
+  try {
+    const data = await apiRequest('/auth/register', {
+      method: 'POST',
+      body: { name, email, phone, password, role, signupCode }
+    });
+    saveSession(data.token, data.user);
+    if (data.user.role === 'AGENT') window.location.href = 'agent-dashboard.html';
+    else if (data.user.role === 'ADMIN') window.location.href = 'admin-dashboard.html';
+    else window.location.href = 'user-dashboard.html';
+  } catch (err) {
+    showError('errorMsg', err.message);
+  }
+});
+</script>
+</body>
+</html>

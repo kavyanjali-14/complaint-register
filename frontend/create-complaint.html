@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>New Complaint</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="navbar" id="navbar"></div>
+
+<div class="container" style="max-width:600px;">
+  <div class="card">
+    <h2>Submit a New Complaint</h2>
+    <div id="errorMsg" class="error-msg hidden"></div>
+    <div id="successMsg" class="success-msg hidden"></div>
+
+    <form id="complaintForm">
+      <label>Title</label>
+      <input type="text" id="title" required placeholder="e.g. WiFi Not Working">
+
+      <label>Description</label>
+      <textarea id="description" rows="4" required placeholder="Describe the issue in detail"></textarea>
+
+      <label>Category</label>
+      <select id="category" required>
+        <option value="Water Issue">Water Issue</option>
+        <option value="Network Issue">Network Issue</option>
+        <option value="Hostel Issue">Hostel Issue</option>
+        <option value="Service Issue">Service Issue</option>
+        <option value="Technical Issue">Technical Issue</option>
+        <option value="Other">Other</option>
+      </select>
+
+      <label>Priority</label>
+      <select id="priority">
+        <option value="Low">Low</option>
+        <option value="Medium" selected>Medium</option>
+        <option value="High">High</option>
+      </select>
+
+      <label>Attachment (image or PDF, optional)</label>
+      <input type="file" id="attachment" accept=".png,.jpg,.jpeg,.gif,.pdf">
+
+      <button type="submit" style="width:100%;">Submit Complaint</button>
+    </form>
+  </div>
+</div>
+
+<script src="js/api.js"></script>
+<script>
+const user = requireAuth('USER');
+renderNavbar(user);
+
+document.getElementById('complaintForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  clearMessage('errorMsg');
+  clearMessage('successMsg');
+
+  const formData = new FormData();
+  formData.append('title', document.getElementById('title').value.trim());
+  formData.append('description', document.getElementById('description').value.trim());
+  formData.append('category', document.getElementById('category').value);
+  formData.append('priority', document.getElementById('priority').value);
+
+  const fileInput = document.getElementById('attachment');
+  if (fileInput.files[0]) formData.append('attachment', fileInput.files[0]);
+
+  try {
+    await apiRequest('/complaints', { method: 'POST', body: formData, isForm: true });
+    document.getElementById('successMsg').textContent = 'Complaint submitted successfully!';
+    document.getElementById('successMsg').classList.remove('hidden');
+    document.getElementById('complaintForm').reset();
+    setTimeout(() => window.location.href = 'user-dashboard.html', 1200);
+  } catch (err) {
+    showError('errorMsg', err.message);
+  }
+});
+</script>
+</body>
+</html>

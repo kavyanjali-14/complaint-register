@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>My Dashboard</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="navbar" id="navbar"></div>
+
+<div class="container">
+  <div class="grid grid-3">
+    <div class="card stat-card">
+      <div class="num" id="totalCount">0</div>
+      <div class="label">Total Complaints</div>
+    </div>
+    <div class="card stat-card">
+      <div class="num" id="activeCount">0</div>
+      <div class="label">Active Complaints</div>
+    </div>
+    <div class="card stat-card">
+      <div class="num" id="resolvedCount">0</div>
+      <div class="label">Resolved Complaints</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="flex-between">
+      <h2>My Complaints</h2>
+      <a class="btn" href="create-complaint.html">+ New Complaint</a>
+    </div>
+    <table>
+      <thead>
+        <tr><th>Title</th><th>Category</th><th>Priority</th><th>Status</th><th>Agent</th><th>Created</th><th></th></tr>
+      </thead>
+      <tbody id="complaintRows"></tbody>
+    </table>
+    <p id="emptyMsg" class="text-muted hidden">You haven't submitted any complaints yet.</p>
+  </div>
+</div>
+
+<script src="js/api.js"></script>
+<script>
+const user = requireAuth('USER');
+renderNavbar(user);
+
+async function loadComplaints() {
+  try {
+    const { complaints } = await apiRequest('/complaints/mine');
+
+    document.getElementById('totalCount').textContent = complaints.length;
+    document.getElementById('activeCount').textContent =
+      complaints.filter(c => !['Resolved', 'Closed'].includes(c.status)).length;
+    document.getElementById('resolvedCount').textContent =
+      complaints.filter(c => ['Resolved', 'Closed'].includes(c.status)).length;
+
+    const rows = document.getElementById('complaintRows');
+    if (complaints.length === 0) {
+      document.getElementById('emptyMsg').classList.remove('hidden');
+      return;
+    }
+
+    rows.innerHTML = complaints.map(c => `
+      <tr>
+        <td>${c.title}</td>
+        <td>${c.category}</td>
+        <td>${c.priority}</td>
+        <td>${statusBadge(c.status)}</td>
+        <td>${c.agentId ? c.agentId.name : '-'}</td>
+        <td>${formatDate(c.createdAt)}</td>
+        <td><button onclick="goToComplaint('${c._id}')">View</button></td>
+      </tr>
+    `).join('');
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+loadComplaints();
+</script>
+</body>
+</html>

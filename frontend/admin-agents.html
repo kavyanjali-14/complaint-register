@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Manage Agents</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="navbar" id="navbar"></div>
+
+<div class="container">
+  <div class="card">
+    <h2>Manage Agents</h2>
+    <p class="text-muted">Agents self-register using the Agent Signup Code. You can enable, disable, or remove their accounts here.</p>
+    <table>
+      <thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Agent ID (for assigning complaints)</th><th>Status</th><th>Actions</th></tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+  </div>
+</div>
+
+<script src="js/api.js"></script>
+<script>
+const user = requireAuth('ADMIN');
+renderNavbar(user);
+
+async function load() {
+  try {
+    const { agents } = await apiRequest('/admin/agents');
+    document.getElementById('rows').innerHTML = agents.map(a => `
+      <tr>
+        <td>${a.name}</td>
+        <td>${a.email}</td>
+        <td>${a.phone}</td>
+        <td><code>${a._id}</code></td>
+        <td>${a.isActive ? '<span class="badge badge-Resolved">Active</span>' : '<span class="badge badge-Closed">Disabled</span>'}</td>
+        <td>
+          <button onclick="toggleActive('${a._id}')">${a.isActive ? 'Disable' : 'Enable'}</button>
+          <button class="btn-danger" onclick="remove('${a._id}')">Delete</button>
+        </td>
+      </tr>
+    `).join('');
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+async function toggleActive(id) {
+  try {
+    await apiRequest(`/admin/users/${id}/toggle-active`, { method: 'PUT' });
+    load();
+  } catch (err) { alert(err.message); }
+}
+
+async function remove(id) {
+  if (!confirm('Delete this agent permanently?')) return;
+  try {
+    await apiRequest(`/admin/users/${id}`, { method: 'DELETE' });
+    load();
+  } catch (err) { alert(err.message); }
+}
+
+load();
+</script>
+</body>
+</html>

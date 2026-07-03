@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Give Feedback</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="navbar" id="navbar"></div>
+
+<div class="container" style="max-width:500px;">
+  <div class="card">
+    <h2>Rate Your Experience</h2>
+    <div id="errorMsg" class="error-msg hidden"></div>
+    <div id="successMsg" class="success-msg hidden"></div>
+
+    <div id="ratingStars" class="mt-10" style="margin-bottom:16px;">
+      <span class="stars" data-val="1">&#9734;</span>
+      <span class="stars" data-val="2">&#9734;</span>
+      <span class="stars" data-val="3">&#9734;</span>
+      <span class="stars" data-val="4">&#9734;</span>
+      <span class="stars" data-val="5">&#9734;</span>
+    </div>
+
+    <label>Comment</label>
+    <textarea id="comment" rows="4" placeholder="Tell us about your experience"></textarea>
+
+    <button id="submitBtn" style="width:100%;">Submit Feedback</button>
+  </div>
+</div>
+
+<script src="js/api.js"></script>
+<script>
+const user = requireAuth('USER');
+renderNavbar(user);
+
+const params = new URLSearchParams(window.location.search);
+let complaintId = params.get('id');
+if (!complaintId) {
+  complaintId = sessionStorage.getItem('cms_active_complaint');
+}
+let rating = 0;
+
+document.querySelectorAll('.stars').forEach(star => {
+  star.addEventListener('click', () => {
+    rating = parseInt(star.dataset.val);
+    document.querySelectorAll('.stars').forEach(s => {
+      s.innerHTML = parseInt(s.dataset.val) <= rating ? '&#9733;' : '&#9734;';
+    });
+  });
+});
+
+document.getElementById('submitBtn').addEventListener('click', async () => {
+  clearMessage('errorMsg');
+  clearMessage('successMsg');
+
+  if (rating === 0) {
+    showError('errorMsg', 'Please select a star rating');
+    return;
+  }
+
+  try {
+    await apiRequest('/feedback', {
+      method: 'POST',
+      body: { complaintId, rating, comment: document.getElementById('comment').value.trim() }
+    });
+    document.getElementById('successMsg').textContent = 'Thank you for your feedback!';
+    document.getElementById('successMsg').classList.remove('hidden');
+    setTimeout(() => window.location.href = 'user-dashboard.html', 1200);
+  } catch (err) {
+    showError('errorMsg', err.message);
+  }
+});
+</script>
+</body>
+</html>

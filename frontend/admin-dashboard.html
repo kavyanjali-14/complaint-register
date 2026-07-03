@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin Dashboard</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="navbar" id="navbar"></div>
+
+<div class="container">
+  <div class="grid grid-4">
+    <div class="card stat-card"><div class="num" id="totalComplaints">0</div><div class="label">Total Complaints</div></div>
+    <div class="card stat-card"><div class="num" id="openComplaints">0</div><div class="label">Open Complaints</div></div>
+    <div class="card stat-card"><div class="num" id="resolvedComplaints">0</div><div class="label">Resolved Complaints</div></div>
+    <div class="card stat-card"><div class="num" id="totalUsers">0</div><div class="label">Total Users</div></div>
+  </div>
+  <div class="grid grid-4">
+    <div class="card stat-card"><div class="num" id="activeAgents">0</div><div class="label">Active Agents</div></div>
+    <div class="card stat-card"><div class="num" id="avgRating">0</div><div class="label">Avg. Feedback Rating</div></div>
+  </div>
+
+  <div class="grid grid-3">
+    <div class="card">
+      <h3>Complaints by Category</h3>
+      <canvas id="categoryChart"></canvas>
+    </div>
+    <div class="card">
+      <h3>Complaints by Month</h3>
+      <canvas id="monthChart"></canvas>
+    </div>
+    <div class="card">
+      <h3>Agent Performance</h3>
+      <canvas id="agentChart"></canvas>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="js/api.js"></script>
+<script>
+const user = requireAuth('ADMIN');
+renderNavbar(user);
+
+const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+async function load() {
+  try {
+    const data = await apiRequest('/admin/analytics');
+
+    document.getElementById('totalComplaints').textContent = data.totalComplaints;
+    document.getElementById('openComplaints').textContent = data.openComplaints;
+    document.getElementById('resolvedComplaints').textContent = data.resolvedComplaints;
+    document.getElementById('totalUsers').textContent = data.totalUsers;
+    document.getElementById('activeAgents').textContent = data.activeAgents;
+    document.getElementById('avgRating').textContent = data.avgRating ? data.avgRating.toFixed(1) : '0.0';
+
+    new Chart(document.getElementById('categoryChart'), {
+      type: 'bar',
+      data: {
+        labels: data.byCategory.map(c => c._id),
+        datasets: [{ label: 'Complaints', data: data.byCategory.map(c => c.count), backgroundColor: '#2563eb' }]
+      },
+      options: { plugins: { legend: { display: false } } }
+    });
+
+    new Chart(document.getElementById('monthChart'), {
+      type: 'line',
+      data: {
+        labels: data.byMonth.map(m => `${monthNames[m._id.month - 1]} ${m._id.year}`),
+        datasets: [{ label: 'Complaints', data: data.byMonth.map(m => m.count), borderColor: '#16a34a', fill: false }]
+      },
+      options: { plugins: { legend: { display: false } } }
+    });
+
+    new Chart(document.getElementById('agentChart'), {
+      type: 'bar',
+      data: {
+        labels: data.agentPerformance.map(a => a.agentName),
+        datasets: [
+          { label: 'Total Assigned', data: data.agentPerformance.map(a => a.total), backgroundColor: '#93c5fd' },
+          { label: 'Resolved', data: data.agentPerformance.map(a => a.resolved), backgroundColor: '#16a34a' }
+        ]
+      }
+    });
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+load();
+</script>
+</body>
+</html>

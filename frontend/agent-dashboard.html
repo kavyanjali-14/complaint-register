@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agent Dashboard</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="navbar" id="navbar"></div>
+
+<div class="container">
+  <div class="grid grid-3">
+    <div class="card stat-card">
+      <div class="num" id="assignedCount">0</div>
+      <div class="label">Assigned Complaints</div>
+    </div>
+    <div class="card stat-card">
+      <div class="num" id="pendingCount">0</div>
+      <div class="label">Pending / In Progress</div>
+    </div>
+    <div class="card stat-card">
+      <div class="num" id="resolvedCount">0</div>
+      <div class="label">Resolved</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="flex-between">
+      <h2>Unassigned Complaints (Pool)</h2>
+      <span class="text-muted">First agent to click Take gets it</span>
+    </div>
+    <table>
+      <thead>
+        <tr><th>Title</th><th>User</th><th>Category</th><th>Priority</th><th>Created</th><th></th></tr>
+      </thead>
+      <tbody id="poolRows"></tbody>
+    </table>
+    <p id="poolEmptyMsg" class="text-muted hidden">No unassigned complaints right now.</p>
+  </div>
+
+  <div class="card">
+    <div class="flex-between">
+      <h2>My Assigned Complaints</h2>
+      <span class="text-muted">Your Agent ID: <code id="myId"></code></span>
+    </div>
+    <table>
+      <thead>
+        <tr><th>Title</th><th>User</th><th>Category</th><th>Priority</th><th>Status</th><th></th></tr>
+      </thead>
+      <tbody id="rows"></tbody>
+    </table>
+    <p id="emptyMsg" class="text-muted hidden">No complaints assigned to you yet.</p>
+  </div>
+</div>
+
+<script src="js/api.js"></script>
+<script>
+const user = requireAuth('AGENT');
+renderNavbar(user);
+document.getElementById('myId').textContent = user.id;
+
+async function loadPool() {
+  try {
+    const { complaints } = await apiRequest('/complaints/unassigned');
+    const rows = document.getElementById('poolRows');
+
+    if (complaints.length === 0) {
+      document.getElementById('poolEmptyMsg').classList.remove('hidden');
+      rows.innerHTML = '';
+      return;
+    }
+    document.getElementById('poolEmptyMsg').classList.add('hidden');
+
+    rows.innerHTML = complaints.map(c => `
+      <tr>
+        <td>${c.title}</td>
+        <td>${c.userId.name}</td>
+        <td>${c.category}</td>
+        <td>${c.priority}</td>
+        <td>${formatDate(c.createdAt)}</td>
+        <td><button class="btn-success" onclick="takeComplaint('${c._id}')">Take</button></td>
+      </tr>
+    `).join('');
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+async function takeComplaint(id) {
+  try {
+    await apiRequest(`/complaints/${id}/take`, { method: 'PUT' });
+    await loadPool();
+    await load();
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+async function load() {
+  try {
+    const { complaints } = await apiRequest('/complaints/assigned');
+
+    document.getElementById('assignedCount').textContent = complaints.length;
+    document.getElementById('pendingCount').textContent =
+      complaints.filter(c => ['Assigned', 'In Progress'].includes(c.status)).length;
+    document.getElementById('resolvedCount').textContent =
+      complaints.filter(c => ['Resolved', 'Closed'].includes(c.status)).length;
+
+    const rows = document.getElementById('rows');
+    if (complaints.length === 0) {
+      document.getElementById('emptyMsg').classList.remove('hidden');
+      rows.innerHTML = '';
+      return;
+    }
+    document.getElementById('emptyMsg').classList.add('hidden');
+
+    rows.innerHTML = complaints.map(c => `
+      <tr>
+        <td>${c.title}</td>
+        <td>${c.userId.name}</td>
+        <td>${c.category}</td>
+        <td>${c.priority}</td>
+        <td>${statusBadge(c.status)}</td>
+        <td><button onclick="goToComplaint('${c._id}')">Open</button></td>
+      </tr>
+    `).join('');
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+loadPool();
+load();
+</script>
+</body>
+</html>

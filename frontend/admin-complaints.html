@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Manage Complaints</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="navbar" id="navbar"></div>
+
+<div class="container">
+  <div class="card">
+    <div class="flex-between">
+      <h2>All Complaints</h2>
+      <select id="statusFilter" style="width:200px;margin-bottom:0;">
+        <option value="">All Statuses</option>
+        <option value="Pending">Pending</option>
+        <option value="Assigned">Assigned</option>
+        <option value="In Progress">In Progress</option>
+        <option value="Resolved">Resolved</option>
+        <option value="Closed">Closed</option>
+      </select>
+    </div>
+    <table>
+      <thead><tr><th>Title</th><th>User</th><th>Category</th><th>Priority</th><th>Status</th><th>Agent</th><th></th></tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+  </div>
+</div>
+
+<script src="js/api.js"></script>
+<script>
+const user = requireAuth('ADMIN');
+renderNavbar(user);
+
+async function load() {
+  try {
+    const status = document.getElementById('statusFilter').value;
+    const query = status ? `?status=${encodeURIComponent(status)}` : '';
+    const { complaints } = await apiRequest(`/complaints${query}`);
+
+    document.getElementById('rows').innerHTML = complaints.map(c => `
+      <tr>
+        <td>${c.title}</td>
+        <td>${c.userId.name}</td>
+        <td>${c.category}</td>
+        <td>${c.priority}</td>
+        <td>${statusBadge(c.status)}</td>
+        <td>${c.agentId ? c.agentId.name : '-'}</td>
+        <td><button onclick="goToComplaint('${c._id}')">Open</button></td>
+      </tr>
+    `).join('');
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+document.getElementById('statusFilter').addEventListener('change', load);
+load();
+</script>
+</body>
+</html>

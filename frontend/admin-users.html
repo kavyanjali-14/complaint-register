@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Manage Users</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="navbar" id="navbar"></div>
+
+<div class="container">
+  <div class="card">
+    <h2>Manage Users</h2>
+    <table>
+      <thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Status</th><th>Joined</th><th>Actions</th></tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+  </div>
+</div>
+
+<script src="js/api.js"></script>
+<script>
+const user = requireAuth('ADMIN');
+renderNavbar(user);
+
+async function load() {
+  try {
+    const { users } = await apiRequest('/admin/users');
+    document.getElementById('rows').innerHTML = users.map(u => `
+      <tr>
+        <td>${u.name}</td>
+        <td>${u.email}</td>
+        <td>${u.phone}</td>
+        <td>${u.isActive ? '<span class="badge badge-Resolved">Active</span>' : '<span class="badge badge-Closed">Disabled</span>'}</td>
+        <td>${formatDate(u.createdAt)}</td>
+        <td>
+          <button onclick="toggleActive('${u._id}')">${u.isActive ? 'Disable' : 'Enable'}</button>
+          <button class="btn-danger" onclick="remove('${u._id}')">Delete</button>
+        </td>
+      </tr>
+    `).join('');
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+async function toggleActive(id) {
+  try {
+    await apiRequest(`/admin/users/${id}/toggle-active`, { method: 'PUT' });
+    load();
+  } catch (err) { alert(err.message); }
+}
+
+async function remove(id) {
+  if (!confirm('Delete this user permanently?')) return;
+  try {
+    await apiRequest(`/admin/users/${id}`, { method: 'DELETE' });
+    load();
+  } catch (err) { alert(err.message); }
+}
+
+load();
+</script>
+</body>
+</html>

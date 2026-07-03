@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Complaint Details</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="navbar" id="navbar"></div>
+
+<div class="container">
+  <div class="card" id="detailsCard">Loading...</div>
+
+  <div class="card" id="statusCard" style="display:none;">
+    <h3>Status Timeline</h3>
+    <ul class="timeline" id="timeline"></ul>
+
+    <div id="agentControls" class="hidden mt-10">
+      <label>Update Status</label>
+      <select id="statusSelect">
+        <option value="Assigned">Assigned</option>
+        <option value="In Progress">In Progress</option>
+        <option value="Resolved">Resolved</option>
+        <option value="Closed">Closed</option>
+      </select>
+      <button id="updateStatusBtn">Update</button>
+    </div>
+
+    <div id="adminAssign" class="hidden mt-10">
+      <label>Assign Agent (Agent ID)</label>
+      <input type="text" id="agentIdInput" placeholder="Paste agent's user ID">
+      <button id="assignBtn">Assign</button>
+    </div>
+
+    <div id="feedbackLink" class="hidden mt-10"></div>
+  </div>
+
+  <div class="card" id="chatCard" style="display:none;">
+    <h3>Chat</h3>
+    <div class="chat-box" id="chatBox"></div>
+    <div class="chat-input-row">
+      <input type="text" id="chatInput" placeholder="Type a message...">
+      <button id="sendBtn">Send</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
+<script src="js/api.js"></script>
+<script>
+const user = requireAuth();
+renderNavbar(user);
+
+const params = new URLSearchParams(window.location.search);
+let complaintId = params.get('id');
+if (!complaintId) {
+  // Fallback in case the host (e.g. npx serve) stripped the query string on redirect
+  complaintId = sessionStorage.getItem('cms_active_complaint');
+}
+let complaint = null;
+let socket = null;
+
+if (!complaintId) {
+  document.getElementById('detailsCard').textContent = 'No complaint ID provided.';
+} else {
+  loadComplaint();
+}
+
+async function loadComplaint() {
+  try {
+    const data = await apiRequest(`/complaints/${complaintId}`);
+    complaint = data.complaint;
+    renderDetails();
+    renderTimeline();
+    setupRoleControls();
+    initChat();
+  } catch (err) {
+    document.getElementById('detailsCard').textContent = err.message;
+  }
+}
+
+function renderDetails() {
+  document.getElementById('detailsCard').innerHTML = `
+    <div class="flex-between">
+      <h2>${complaint.title}</h2>
+      ${statusBadge(complaint.status)}
+    </div>
+    <p>${complaint.description}</p>
+    <p class="text-muted">
+      Category: ${complaint.category} &nbsp;|&nbsp; Priority: ${complaint.priority}
+    </p>
+    <p class="text-muted">
+      Submitted by: ${complaint.userId.name} (${complaint.userId.email})<br>
+      Assigned agent: ${complaint.agentId ? complaint.agentId.name : 'Not yet assigned'}
+    </p>
+    ${complaint.attachment ? `<a href="${SOCKET_BASE}${complaint.attachment}" target="_blank">View Attachment</a>` : ''}
+  `;
+  document.getElementById('statusCard').style.display = 'block';
+}
+
+function renderTimeline() {
+  const list = document.getElementById('timeline');
+  list.innerHTML = complaint.statusHistory.map(h => `
+    <li><strong>${h.status}</strong><br><span class="text-muted">${formatDate(h.changedAt)}</span></li>
+  `).join('');
+}
+
+function setupRoleControls() {
+  if (user.role === 'AGENT') {
+    document.getElementById('agentControls').classList.remove('hidden');
+    document.getElementById('updateStatusBtn').addEventListener('click', updateStatus);
+  }
+  if (user.role === 'ADMIN') {
+    document.getElementById('adminAssign').classList.remove('hidden');
+    document.getElementById('assignBtn').addEventListener('click', assignAgent);
+    document.getElementById('agentControls').classList.remove('hidden');
+    document.getElementById('updateStatusBtn').addEventListener('click', updateStatus);
+  }
+  if (user.role === 'USER' && ['Resolved', 'Closed'].includes(complaint.status)) {
+    document.getElementById('feedbackLink').classList.remove('hidden');
+    document.getElementById('feedbackLink').innerHTML =
+      `<button class="btn-success" onclick="goToFeedback('${complaint._id}')">Give Feedback</button>`;
+  }
+}
+
+async function updateStatus() {
+  const status = document.getElementById('statusSelect').value;
+  try {
+    await apiRequest(`/complaints/${complaintId}/status`, { method: 'PUT', body: { status } });
+    await loadComplaint();
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+async function assignAgent() {
+  const agentId = document.getElementById('agentIdInput').value.trim();
+  try {
+    await apiRequest(`/complaints/${complaintId}/assign`, { method: 'PUT', body: { agentId } });
+    await loadComplaint();
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+// ---- Chat via Socket.io ----
+async function initChat() {
+  document.getElementById('chatCard').style.display = 'block';
+
+  try {
+    const { messages } = await apiRequest(`/chat/${complaintId}`);
+    const box = document.getElementById('chatBox');
+    box.innerHTML = messages.map(renderMsg).join('');
+    box.scrollTop = box.scrollHeight;
+  } catch (err) {
+    console.error(err);
+  }
+
+  socket = io(SOCKET_BASE, { auth: { token: getToken() } });
+  socket.emit('join_complaint', complaintId);
+
+  socket.on('receive_message', (msg) => {
+    const box = document.getElementById('chatBox');
+    box.insertAdjacentHTML('beforeend', renderMsg(msg));
+    box.scrollTop = box.scrollHeight;
+  });
+
+  socket.on('chat_error', (err) => alert(err.message));
+
+  document.getElementById('sendBtn').addEventListener('click', sendMessage);
+  document.getElementById('chatInput').addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') sendMessage();
+  });
+}
+
+function renderMsg(msg) {
+  const mine = msg.senderId === user.id || msg.senderId?._id === user.id;
+  return `<div class="chat-msg ${mine ? 'mine' : 'theirs'}">${msg.message}</div>`;
+}
+
+function sendMessage() {
+  const input = document.getElementById('chatInput');
+  const message = input.value.trim();
+  if (!message) return;
+  socket.emit('send_message', { complaintId, senderRole: user.role, message });
+  input.value = '';
+}
+</script>
+</body>
+</html>
